@@ -1,0 +1,242 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  password      String
+  phone         String   @unique
+  address       String
+  orders        Order[]
+  points        Decimal?  @default(0)
+  created_at    DateTime @default(now())
+  cart         Cart[]
+}
+
+model Admin {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  password      String
+  phone         String   @unique
+  createdAt     DateTime @default(now())
+}
+
+model Pizza {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  imageUrl      String?
+  sizes         Json    // {"small": 10, "medium": 15, "large": 20}
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id] )  
+  defaultToppings DefaultToppings[] 
+  defaultIngredients DefaultIngredients[]  
+  createdAt    DateTime @default(now())
+  orderItems    OrderItem[]
+  comboPizzas   ComboPizza[]
+  cartItems     CartItem[]
+}
+
+model ComboOffers {
+  id             String   @id @default(cuid())
+  name           String
+  description    String
+  imageUrl       String
+  discount      Decimal
+  price          Decimal
+  createdAt      DateTime @default(now())
+  pizzas         ComboPizza[]   
+  cartItems      CartItem[]
+  orderItems    OrderItem[]
+}
+
+model ComboPizza {
+  id             String   @id @default(cuid())
+  comboId        String
+  pizzaId        String
+  quantity       Int
+  size           String
+  combo        ComboOffers @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  pizza         Pizza       @relation(fields: [pizzaId], references: [id], onDelete: Cascade)
+}
+
+model Cart {
+  id            String   @id @default(cuid())
+  userId        String?  
+  sessionId    String?   @unique
+  user          User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalAmount   Decimal  @default(0)
+  cartItems     CartItem[]
+  createdAt     DateTime @default(now())
+}
+
+model CartItem {
+   id           String   @id @default(cuid())
+   cartId       String
+   cart         Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+   pizzaId      String?  // Make pizzaId optional
+   pizza        Pizza?   @relation(fields: [pizzaId], references: [id], onDelete: Cascade)
+   comboId      String?  // Add comboId field
+   combo        ComboOffers? @relation(fields: [comboId], references: [id], onDelete: Cascade)
+   size         String
+   quantity     Int
+   basePrice    Decimal
+   finalPrice   Decimal
+   cartToppings CartToppings[]     
+   cartIngredients CartIngredients[] 
+   isCombo      Boolean  @default(false)
+   createdAt    DateTime @default(now())
+}
+
+model CartToppings {
+  id           String   @id @default(cuid())
+  cartItemId    String
+  cartItem      CartItem @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  toppingId     String   
+  topping      ToppingsList @relation(fields: [toppingId], references: [id], onDelete: Cascade) 
+  defaultQuantity Int  
+  addedQuantity   Int  
+}
+
+model CartIngredients  {
+  id                     String   @id @default(cuid())
+  cartItemId            String
+  cartItem              CartItem @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  ingredientId          String 
+  ingredient            IngredientsList @relation(fields: [ingredientId], references: [id], onDelete: Cascade) 
+  defaultQuantity       Int
+  addedQuantity         Int
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  status          OrderStatus @default(PENDING)
+  totalAmount     Decimal
+  deliveryMethod  String      // "delivery" or "pickup"
+  deliveryAddress String?     // null for pickup orders
+  pickupTime      String?     // null for delivery orders
+  customerName    String
+  paymentStatus   String      // "PAID", "PENDING", "FAILED"
+  paymentId       String?     // Stripe payment intent ID
+  orderItems      OrderItem[]
+  createdAt       DateTime    @default(now())
+}
+
+model OrderItem {
+  id               String            @id @default(cuid())
+  orderId          String
+  order            Order             @relation(fields: [orderId], references: [id])
+  pizzaId          String?
+  comboId          String?
+  pizza            Pizza?            @relation(fields: [pizzaId], references: [id])
+  combo            ComboOffers?      @relation(fields: [comboId], references: [id])
+  quantity         Int
+  size            String
+  price           Decimal
+  isCombo         Boolean           @default(false)
+  orderToppings    OrderToppings[]
+  orderIngredients OrderIngredients[]
+}
+
+model OrderToppings  {
+  id            String   @id @default(cuid())
+  name          String
+  price         Decimal
+  status        Boolean  //admin access
+  include       Boolean  //user access
+  quantity      Int
+  orderItemId    String
+  orderItem      OrderItem @relation(fields: [orderItemId], references: [id])
+}
+
+model OrderIngredients  {
+  id                     String   @id @default(cuid())
+  name                   String
+  price                  Decimal
+  status                 Boolean   //admin access
+  include                Boolean   //user access
+  quantity               Int
+  orderItemId            String
+  orderItem              OrderItem @relation(fields: [orderItemId], references: [id])
+}
+
+model DefaultToppings {
+  id            String   @id @default(cuid())
+  name          String
+  price         Decimal
+  quantity      Int
+  include       Boolean
+  pizzaId       String   
+  pizza         Pizza    @relation(fields: [pizzaId], references: [id], onDelete: Cascade)
+  toppingId     String   // added now
+  topping   ToppingsList @relation(fields: [toppingId], references: [id], onDelete: Cascade) // added now
+}
+
+model DefaultIngredients {
+  id            String @id  @default(cuid())
+  name          String
+  price         Decimal
+  quantity      Int
+  include       Boolean
+  pizzaId       String
+  pizza         Pizza    @relation(fields: [pizzaId], references: [id], onDelete: Cascade)
+  ingredientId  String //added now
+  ingredient    IngredientsList @relation(fields: [ingredientId], references: [id], onDelete: Cascade) // added now
+}
+
+model ToppingsList {
+  id            String   @id @default(cuid())
+  name          String
+  price         Decimal
+  status        Boolean  @default(true)
+  defaultToppings DefaultToppings[]
+  cartToppings  CartToppings[] 
+
+}
+
+model IngredientsList {
+  id            String   @id @default(cuid())
+  name          String
+  price         Decimal
+  status        Boolean  @default(true)
+  defaultIngredients DefaultIngredients[] 
+  cartIngredients CartIngredients[]
+}
+
+model Category {
+  id            String   @id @default(cuid())
+  description   String?
+  name          String
+  pizzas        Pizza[]  
+}
+
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  DELIVERED
+  CANCELLED
+}
+
+enum PizzaSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
