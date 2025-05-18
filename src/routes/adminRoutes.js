@@ -44,7 +44,7 @@ const router = express.Router();
 
 // Public routes (no auth required)
 router.get("/images/:imageName", serveImmg);
-router.post("/admin/login", login); // Changed back to /admin/login
+router.post("/login", login); // Changed back to /admin/login
 
 // Protected routes with middleware
 router.use("/admin", verifyToken); // Apply middleware to all admin routes

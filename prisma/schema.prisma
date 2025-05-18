@@ -141,7 +141,7 @@ model Order {
 model OrderItem {
   id               String            @id @default(cuid())
   orderId          String
-  order            Order             @relation(fields: [orderId], references: [id])
+  order            Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
   pizzaId          String?
   comboId          String?
   pizza            Pizza?            @relation(fields: [pizzaId], references: [id])
@@ -162,7 +162,7 @@ model OrderToppings  {
   include       Boolean  //user access
   quantity      Int
   orderItemId    String
-  orderItem      OrderItem @relation(fields: [orderItemId], references: [id])
+  orderItem      OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 }
 
 model OrderIngredients  {
@@ -173,7 +173,7 @@ model OrderIngredients  {
   include                Boolean   //user access
   quantity               Int
   orderItemId            String
-  orderItem              OrderItem @relation(fields: [orderItemId], references: [id])
+  orderItem              OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 }
 
 model DefaultToppings {

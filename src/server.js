@@ -120,6 +120,7 @@ app.post(
           },
         },
       });
+      console.log("Cart found:", cart);
 
       if (!cart) {
         throw new Error("Cart not found");
@@ -165,6 +166,7 @@ app.post(
           },
         },
       });
+      console.log("Order created:", order);
       // Clear the cart
       await prisma.cart.update({
         where: { id: cartId },
