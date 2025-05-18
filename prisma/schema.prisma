@@ -42,7 +42,7 @@ model Pizza {
   imageUrl      String?
   sizes         Json    // {"small": 10, "medium": 15, "large": 20}
   categoryId    String
-  category      Category @relation(fields: [categoryId], references: [id] )  
+  category      Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)  
   defaultToppings DefaultToppings[] 
   defaultIngredients DefaultIngredients[]  
   createdAt    DateTime @default(now())
