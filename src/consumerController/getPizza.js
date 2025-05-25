@@ -1,14 +1,46 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
+// const getPizzabyCategory = async (req, res) => {
+//   try {
+//     const { categoryId } = req.query;
+//     const checkCategory = await prisma.category.findUnique({
+//       where: {
+//         id: categoryId,
+//       },
+//     });
+//     if (!checkCategory) {
+//       return res.status(404).json({ message: "Category not found" });
+//     }
+
+//     const pizzas = await prisma.category.findUnique({
+//       where: {
+//         id: categoryId,
+//       },
+//       include: {
+//         pizzas: true,
+//       },
+//     });
+//     return res
+//       .status(200)
+//       .json({ message: "Pizzas fetched successfully", data: pizzas });
+//   } catch (error) {
+//     return res.status(500).json({ message: error.message });
+//   }
+// };
+
+
+
 const getPizzabyCategory = async (req, res) => {
   try {
     const { categoryId } = req.query;
+
     const checkCategory = await prisma.category.findUnique({
       where: {
         id: categoryId,
       },
     });
+
     if (!checkCategory) {
       return res.status(404).json({ message: "Category not found" });
     }
@@ -18,12 +50,27 @@ const getPizzabyCategory = async (req, res) => {
         id: categoryId,
       },
       include: {
-        pizzas: true,
+        pizzas: {
+          include: {
+            defaultToppings: {
+              include: {
+                topping: true, // Includes topping info from ToppingsList
+              },
+            },
+            defaultIngredients: {
+              include: {
+                ingredient: true, // Includes ingredient info from IngredientsList
+              },
+            },
+          },
+        },
       },
     });
-    return res
-      .status(200)
-      .json({ message: "Pizzas fetched successfully", data: pizzas });
+
+    return res.status(200).json({
+      message: "Pizzas fetched successfully",
+      data: pizzas,
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }

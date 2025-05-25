@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 import crypto from 'crypto';
 import dotenv from 'dotenv'
+import { log } from 'console';
 
 let otpStorage = {};
 
@@ -21,37 +22,14 @@ const generateOtp = async (req, res) => {
     otp,
     expires: Date.now() + 300000
   };
+  console.log("otpStorage", otpStorage)
 
   console.log(`OTP for ${mobile}: ${otp}`);
   res.status(200).json({ success: true });
 };
 
-// const verifyOtp = async (req, res) => {
-//   const { mobile, otp } = req.body;
 
-  
-//   if (!mobile || !otp) {
-//     return res.status(400).json({ success: false, message: 'Mobile and OTP required' });
-//   }
 
-//   const storedOtp = otpStorage[mobile];
-//   console.log(storedOtp, otp);
-//   console.log(otpStorage, mobile);
-
-//   if (!storedOtp || storedOtp.expires < Date.now()) {
-//     return res.status(400).json({ 
-//       success: false, 
-//       message: 'OTP expired or invalid' 
-//     });
-//   }
-
-//   if (storedOtp.otp === otp) {
-//     delete otpStorage[mobile];
-//     return res.status(200).json({ success: true });
-//   }
-
-//   res.status(400).json({ success: false, message: 'Invalid OTP' });
-// };
 const generateToken = (userId, phone) => {
     return jwt.sign(
       { userId, phone },
@@ -62,15 +40,21 @@ const generateToken = (userId, phone) => {
   
   const verifyOtp = async (req, res) => {
     const { mobile, otp } = req.body;
-  
+   console.log("verify otp called")
+    console.log("mobile", mobile, "otp", otp)
     if (!mobile || !otp) {
+       console.log("mobile or otp not provided")
+
       return res.status(400).json({ success: false, message: 'Mobile and OTP required' });
+     
     }
   
     try {
       const storedOtp = otpStorage[mobile];
+      console.log("storedOtp", storedOtp, "otp", otp);
       
       if (!storedOtp || storedOtp.expires < Date.now() || storedOtp.otp !== otp) {
+        console.log("otp not valid or expired")
         return res.status(400).json({ 
           success: false, 
           message: 'Invalid or expired OTP' 

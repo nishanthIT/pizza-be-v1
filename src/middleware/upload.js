@@ -57,14 +57,41 @@ const upload = multer({
   },
 });
 
+// const convertToPng = async (req, res, next) => {
+//   if (!req.file) return next();
+
+//   const originalPath = path.join(uploadDir, req.file.filename);
+//   const pngFilename = req.file.filename.replace(
+//     path.extname(req.file.filename),
+//     ".png"
+//   );
+//   const pngPath = path.join(uploadDir, pngFilename);
+
+//   try {
+//     await sharp(originalPath).png().toFile(pngPath);
+//     fs.unlinkSync(originalPath); // Remove original file
+
+//     // Update req.file to reflect new .png
+//     req.file.filename = pngFilename;
+//     req.file.path = pngPath;
+
+//     next();
+//   } catch (err) {
+//     console.error("Error converting image to PNG:", err);
+//     return res.status(500).json({ error: "Failed to process image" });
+//   }
+// };
 const convertToPng = async (req, res, next) => {
   if (!req.file) return next();
 
+  const ext = path.extname(req.file.filename).toLowerCase();
+  if (ext === ".png") {
+    // Skip conversion if it's already a PNG
+    return next();
+  }
+
   const originalPath = path.join(uploadDir, req.file.filename);
-  const pngFilename = req.file.filename.replace(
-    path.extname(req.file.filename),
-    ".png"
-  );
+  const pngFilename = req.file.filename.replace(ext, ".png");
   const pngPath = path.join(uploadDir, pngFilename);
 
   try {
@@ -81,6 +108,7 @@ const convertToPng = async (req, res, next) => {
     return res.status(500).json({ error: "Failed to process image" });
   }
 };
+
 
 export const deleteFile = (filename) => {
   if (!filename) return;
