@@ -39,6 +39,12 @@ import {
   getOrderDetails,
 } from "../adminController/order.js";
 import { login, verifyToken } from "../adminController/auth.js";
+import {
+  addOtherItem,
+  deleteOtherItem,
+  getAllOtherItems,
+  updateOtherItem,
+} from "../adminController/otherItems.js";
 
 const router = express.Router();
 
@@ -96,6 +102,22 @@ adminRouter.put(
   convertToPng,
   editComboOffer
 );
+
+// add otherItems
+adminRouter.post(
+  "/addOtherItem",
+  upload.single("image"),
+  convertToPng,
+  addOtherItem
+);
+adminRouter.put(
+  "/updateOtherItem",
+  upload.single("image"),
+  convertToPng,
+  updateOtherItem
+);
+adminRouter.delete("/deleteOtherItem/:id", deleteOtherItem);
+adminRouter.get("/getAllOtherItems", getAllOtherItems);
 
 // Admin orders
 adminRouter.get("/getOrderDetails/:id", getOrderDetails);

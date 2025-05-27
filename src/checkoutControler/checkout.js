@@ -36,6 +36,7 @@ export default async function checkout(req, res) {
           include: {
             pizza: true,
             combo: true,
+            otherItem: true, // Add this line
             cartToppings: true,
             cartIngredients: true,
           },
@@ -68,19 +69,36 @@ export default async function checkout(req, res) {
         ? Number(userCart.totalAmount) + Number(deliveryFee)
         : Number(userCart.totalAmount);
 
-    const line_items = userCart.cartItems.map((item) => ({
-      price_data: {
-        currency: "gbp",
-        product_data: {
-          name: item.isCombo ? item.combo?.name : item.pizza?.name,
-          description: `Size: ${item.size}`,
+    // Replace the existing line_items mapping with this:
+    const line_items = userCart.cartItems.map((item) => {
+      // Get the item name based on type
+      let itemName = "";
+      if (item.isCombo && item.combo) {
+        itemName = item.combo.name;
+      } else if (item.isOtherItem && item.otherItem) {
+        itemName = item.otherItem.name;
+      } else if (item.pizza) {
+        itemName = item.pizza.name;
+      } else {
+        itemName = "Unknown Item"; // Fallback name
+      }
+
+      return {
+        price_data: {
+          currency: "gbp",
+          product_data: {
+            name: itemName, // Now we ensure there's always a name
+            description: item.isCombo
+              ? "Combo Pack"
+              : item.isOtherItem
+              ? "Other Item"
+              : `Size: ${item.size}`,
+          },
+          unit_amount: Math.round(Number(item.basePrice) * 100),
         },
-        // Fix: Use basePrice instead of finalPrice for unit_amount
-        //unit_amount: Math.round(Number(item.basePrice) * 100), // Changed from item.finalPrice to item.basePrice
-        unit_amount: Math.round(Number(item.basePrice) * 100), // Changed from item.finalPrice to item.basePrice
-      },
-      quantity: item.quantity,
-    }));
+        quantity: item.quantity,
+      };
+    });
 
     // Add fees
     if (deliveryMethod === "delivery") {
@@ -143,10 +161,10 @@ export default async function checkout(req, res) {
 
 // Add webhook handler for successful payments
 export async function handleStripeWebhook(req, res) {
-  const sig = req.headers["stripe-signature"];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
   try {
+    const sig = req.headers["stripe-signature"];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
     const event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
 
     if (event.type === "checkout.session.completed") {
@@ -169,6 +187,7 @@ export async function handleStripeWebhook(req, res) {
             include: {
               pizza: true,
               combo: true,
+              otherItem: true,
               cartToppings: {
                 include: { topping: true },
               },
@@ -179,6 +198,18 @@ export async function handleStripeWebhook(req, res) {
           },
         },
       });
+
+      // Add debug log
+      console.log(
+        "Cart Items:",
+        cart.cartItems.map((item) => ({
+          id: item.id,
+          isOtherItem: item.isOtherItem,
+          otherItemId: item.otherItemId,
+          size: item.size,
+          price: item.finalPrice,
+        }))
+      );
 
       if (!cart) {
         throw new Error("Cart not found");
@@ -198,12 +229,14 @@ export async function handleStripeWebhook(req, res) {
           paymentId: session.payment_intent,
           orderItems: {
             create: cart.cartItems.map((item) => ({
-              pizzaId: item.pizzaId,
-              comboId: item.comboId,
+              pizzaId: item.isOtherItem ? null : item.pizzaId,
+              comboId: item.isCombo ? item.comboId : null,
+              otherItemId: item.otherItemId || null,
               quantity: item.quantity,
               size: item.size,
               price: item.finalPrice,
-              isCombo: item.isCombo,
+              isCombo: Boolean(item.isCombo),
+              isOtherItem: Boolean(item.isOtherItem),
               orderToppings: {
                 create: item.cartToppings.map((t) => ({
                   name: t.topping.name,
@@ -225,6 +258,17 @@ export async function handleStripeWebhook(req, res) {
             })),
           },
         },
+        include: {
+          orderItems: {
+            include: {
+              pizza: true,
+              combo: true,
+              otherItem: true,
+              orderToppings: true,
+              orderIngredients: true,
+            },
+          },
+        },
       });
 
       // Clear the cart
@@ -236,12 +280,16 @@ export async function handleStripeWebhook(req, res) {
         },
       });
 
-      console.log("Order created:", order.id);
-    }
+      console.log("✅ Order created and cart cleared:", order.id);
 
-    res.json({ received: true });
+      // Send response immediately after order creation
+      return res.json({
+        received: true,
+        orderId: order.id,
+      });
+    }
   } catch (err) {
-    console.error("Webhook Error:", err.message);
-    res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error("Webhook Error:", err);
+    return res.status(500).json({ error: err.message });
   }
 }

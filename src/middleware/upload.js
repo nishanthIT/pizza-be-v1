@@ -109,7 +109,6 @@ const convertToPng = async (req, res, next) => {
   }
 };
 
-
 export const deleteFile = (filename) => {
   if (!filename) return;
   const filePath = path.join(uploadDir, filename);

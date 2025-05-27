@@ -21,6 +21,10 @@ import {
   getAllcomboList,
   getComboByIdUser,
 } from "../consumerController/getCombo.js";
+import {
+  getOtherItemByCategory,
+  getOtherItemById,
+} from "../consumerController/orderItemsUser.js";
 
 const router = express.Router();
 
@@ -57,5 +61,9 @@ router.get("/check-auth", authenticateUser, (req, res) => {
     user: req.user,
   });
 });
+
+// get other items by category
+router.get("/getOtherItemByCategory", getOtherItemByCategory);
+router.get("/getOtherItemById/:id", getOtherItemById);
 
 export default router;

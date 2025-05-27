@@ -24,6 +24,9 @@ function itemsMatch(a, b) {
   if (b.isCombo) {
     return a.comboId === b.id;
   }
+  if (b.isOtherItem) {
+    return a.otherItemId === b.id;
+  }
   return (
     a.pizzaId === b.pizzaId &&
     a.size === b.size &&
@@ -56,6 +59,9 @@ export default async function syncCart(req, res) {
       include: {
         cartItems: {
           include: {
+            pizza: true,
+            combo: true,
+            otherItem: true,
             cartToppings: true,
             cartIngredients: true,
           },
@@ -74,6 +80,9 @@ export default async function syncCart(req, res) {
         include: {
           cartItems: {
             include: {
+              pizza: true,
+              combo: true,
+              otherItem: true,
               cartToppings: true,
               cartIngredients: true,
             },
@@ -147,54 +156,67 @@ export default async function syncCart(req, res) {
         // Replace the item in the updatedItems array
         const index = updatedItems.findIndex((i) => i.id === existing.id);
         if (index !== -1) updatedItems[index] = updatedItem;
+      } else if (localItem.isCombo) {
+        const newItem = await prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            comboId: localItem.id,
+            pizzaId: null,
+            size: "COMBO",
+            quantity: localItem.quantity,
+            basePrice: Number(localItem.eachprice),
+            // Fix: Multiply finalPrice by quantity for combos
+            finalPrice: Number(localItem.eachprice) * localItem.quantity,
+            isCombo: true,
+          },
+        });
+        updatedItems.push(newItem);
+      } else if (localItem.isOtherItem) {
+        const newItem = await prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            otherItemId: localItem.id,
+            pizzaId: null,
+            comboId: null,
+            size: "OTHER",
+            quantity: localItem.quantity,
+            basePrice: Number(localItem.eachprice),
+            finalPrice: Number(localItem.eachprice) * localItem.quantity,
+            isOtherItem: true,
+          },
+        });
+        updatedItems.push(newItem);
       } else {
-        if (localItem.isCombo) {
-          const newItem = await prisma.cartItem.create({
-            data: {
-              cartId: cart.id,
-              comboId: localItem.id,
-              pizzaId: null,
-              size: "COMBO",
-              quantity: localItem.quantity,
-              basePrice: Number(localItem.eachprice),
-              // Fix: Multiply finalPrice by quantity for combos
-              finalPrice: Number(localItem.eachprice) * localItem.quantity,
-              isCombo: true,
+        const newItem = await prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            pizzaId: pizzaId,
+            comboId: null, // Set comboId to null for regular pizzas
+            size: localItem.size,
+            quantity: localItem.quantity,
+            basePrice: eachPrice,
+            finalPrice: finalPrice,
+            cartToppings: {
+              create: toppings.map((t) => ({
+                toppingId: t.id,
+                defaultQuantity: 0,
+                addedQuantity: t.quantity,
+              })),
             },
-          });
-          updatedItems.push(newItem);
-        } else {
-          const newItem = await prisma.cartItem.create({
-            data: {
-              cartId: cart.id,
-              pizzaId: pizzaId,
-              comboId: null, // Set comboId to null for regular pizzas
-              size: localItem.size,
-              quantity: localItem.quantity,
-              basePrice: eachPrice,
-              finalPrice: finalPrice,
-              cartToppings: {
-                create: toppings.map((t) => ({
-                  toppingId: t.id,
-                  defaultQuantity: 0,
-                  addedQuantity: t.quantity,
-                })),
-              },
-              cartIngredients: {
-                create: ingredients.map((i) => ({
-                  ingredientId: i.id,
-                  defaultQuantity: 0,
-                  addedQuantity: i.quantity,
-                })),
-              },
+            cartIngredients: {
+              create: ingredients.map((i) => ({
+                ingredientId: i.id,
+                defaultQuantity: 0,
+                addedQuantity: i.quantity,
+              })),
             },
-            include: {
-              cartToppings: true,
-              cartIngredients: true,
-            },
-          });
-          updatedItems.push(newItem);
-        }
+          },
+          include: {
+            cartToppings: true,
+            cartIngredients: true,
+          },
+        });
+        updatedItems.push(newItem);
       }
     }
 

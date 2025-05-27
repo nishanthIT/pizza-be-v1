@@ -92,6 +92,8 @@ model CartItem {
    pizza        Pizza?   @relation(fields: [pizzaId], references: [id], onDelete: Cascade)
    comboId      String?  // Add comboId field
    combo        ComboOffers? @relation(fields: [comboId], references: [id], onDelete: Cascade)
+   otherItemId  String?
+   otherItem    OtherItem? @relation(fields: [otherItemId], references: [id], onDelete: Cascade)
    size         String
    quantity     Int
    basePrice    Decimal
@@ -99,6 +101,7 @@ model CartItem {
    cartToppings CartToppings[]     
    cartIngredients CartIngredients[] 
    isCombo      Boolean  @default(false)
+   isOtherItem  Boolean  @default(false)
    createdAt    DateTime @default(now())
 }
 
@@ -139,19 +142,23 @@ model Order {
 }
 
 model OrderItem {
-  id               String            @id @default(cuid())
-  orderId          String
-  order            Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  pizzaId          String?
-  comboId          String?
-  pizza            Pizza?            @relation(fields: [pizzaId], references: [id])
-  combo            ComboOffers?      @relation(fields: [comboId], references: [id])
-  quantity         Int
+  id              String   @id @default(cuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  pizzaId         String?
+  pizza           Pizza?   @relation(fields: [pizzaId], references: [id])
+  comboId         String?
+  combo           ComboOffers? @relation(fields: [comboId], references: [id])
+  otherItemId     String?  // Add this
+  otherItem       OtherItem? @relation(fields: [otherItemId], references: [id]) // Add this
   size            String
+  quantity        Int
   price           Decimal
-  isCombo         Boolean           @default(false)
-  orderToppings    OrderToppings[]
+  isCombo         Boolean  @default(false)
+  isOtherItem     Boolean  @default(false) // Add this
+  orderToppings   OrderToppings[]
   orderIngredients OrderIngredients[]
+  createdAt       DateTime @default(now())
 }
 
 model OrderToppings  {
@@ -224,8 +231,21 @@ model Category {
   description   String?
   name          String
   pizzas        Pizza[]  
+  otherItems    OtherItem[]
 }
 
+model OtherItem {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  imageUrl      String?
+  price         Decimal
+  createdAt     DateTime @default(now())
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+}
 
 enum OrderStatus {
   PENDING
@@ -239,4 +259,3 @@ enum PizzaSize {
   MEDIUM
   LARGE
 }
-
