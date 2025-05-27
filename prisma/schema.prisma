@@ -149,13 +149,13 @@ model OrderItem {
   pizza           Pizza?   @relation(fields: [pizzaId], references: [id])
   comboId         String?
   combo           ComboOffers? @relation(fields: [comboId], references: [id])
-  otherItemId     String?  // Add this
-  otherItem       OtherItem? @relation(fields: [otherItemId], references: [id]) // Add this
+  otherItemId     String?
+  otherItem       OtherItem? @relation(fields: [otherItemId], references: [id])
   size            String
   quantity        Int
   price           Decimal
   isCombo         Boolean  @default(false)
-  isOtherItem     Boolean  @default(false) // Add this
+  isOtherItem     Boolean  @default(false)
   orderToppings   OrderToppings[]
   orderIngredients OrderIngredients[]
   createdAt       DateTime @default(now())

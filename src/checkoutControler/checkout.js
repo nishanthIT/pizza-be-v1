@@ -164,7 +164,6 @@ export async function handleStripeWebhook(req, res) {
   try {
     const sig = req.headers["stripe-signature"];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
     const event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
 
     if (event.type === "checkout.session.completed") {
@@ -179,115 +178,222 @@ export async function handleStripeWebhook(req, res) {
         totalAmount,
       } = session.metadata;
 
-      // Get cart details
-      const cart = await prisma.cart.findUnique({
-        where: { id: cartId },
-        include: {
-          cartItems: {
-            include: {
-              pizza: true,
-              combo: true,
-              otherItem: true,
-              cartToppings: {
-                include: { topping: true },
-              },
-              cartIngredients: {
-                include: { ingredient: true },
+      // Check if order already exists for this payment
+      const existingOrder = await prisma.order.findFirst({
+        where: { paymentId: session.payment_intent },
+      });
+
+      if (existingOrder) {
+        console.log("Order already exists:", existingOrder.id);
+        return res.json({ received: true, orderId: existingOrder.id });
+      }
+
+      // Get cart with a transaction to ensure consistency
+      const result = await prisma.$transaction(async (tx) => {
+        // Get cart
+        const cart = await tx.cart.findUnique({
+          where: { id: cartId },
+          include: {
+            cartItems: {
+              include: {
+                pizza: true,
+                combo: true,
+                otherItem: true,
+                cartToppings: { include: { topping: true } },
+                cartIngredients: { include: { ingredient: true } },
               },
             },
           },
-        },
+        });
+
+        if (!cart) {
+          throw new Error("Cart not found");
+        }
+
+        // Create order
+        const order = await tx.order.create({
+          data: {
+            userId,
+            status: "PENDING",
+            totalAmount: new Decimal(totalAmount),
+            deliveryMethod,
+            deliveryAddress: address || null,
+            pickupTime: pickupTime || null,
+            customerName: name,
+            paymentStatus: "PAID",
+            paymentId: session.payment_intent,
+            orderItems: {
+              create: cart.cartItems.map((item) => {
+                // Debug log to verify cart item data
+                console.log("Processing cart item for order:", {
+                  id: item.id,
+                  isOtherItem: item.isOtherItem,
+                  otherItemId: item.otherItemId,
+                  isCombo: item.isCombo,
+                  comboId: item.comboId,
+                  pizzaId: item.pizzaId,
+                  size: item.size,
+                  finalPrice: item.finalPrice,
+                });
+
+                // Explicitly construct the order item
+                const orderItem = {
+                  quantity: item.quantity,
+                  size: item.size,
+                  price: item.finalPrice,
+                  isCombo: Boolean(item.isCombo),
+                  isOtherItem: Boolean(item.isOtherItem),
+                  pizzaId: null,
+                  comboId: null,
+                  otherItemId: null,
+                };
+
+                // Important: Set IDs based on item type
+                if (item.isOtherItem && item.otherItemId) {
+                  orderItem.otherItemId = item.otherItemId;
+                  orderItem.isOtherItem = true;
+                  // Reset other IDs
+                  orderItem.pizzaId = null;
+                  orderItem.comboId = null;
+                } else if (item.isCombo && item.comboId) {
+                  orderItem.comboId = item.comboId;
+                  orderItem.isCombo = true;
+                  // Reset other IDs
+                  orderItem.pizzaId = null;
+                  orderItem.otherItemId = null;
+                } else if (item.pizzaId) {
+                  orderItem.pizzaId = item.pizzaId;
+                  // Reset other IDs
+                  orderItem.comboId = null;
+                  orderItem.otherItemId = null;
+                }
+
+                // Add debug log for final order item
+                console.log("Final order item to be created:", {
+                  ...orderItem,
+                  hasOtherItemId: Boolean(orderItem.otherItemId),
+                  hasComboId: Boolean(orderItem.comboId),
+                  hasPizzaId: Boolean(orderItem.pizzaId),
+                });
+
+                // Handle toppings and ingredients only for pizzas
+                if (!orderItem.isOtherItem && !orderItem.isCombo) {
+                  orderItem.orderToppings = {
+                    create: item.cartToppings.map((t) => ({
+                      name: t.topping.name,
+                      price: t.topping.price,
+                      status: true,
+                      include: true,
+                      quantity: t.addedQuantity,
+                    })),
+                  };
+                  orderItem.orderIngredients = {
+                    create: item.cartIngredients.map((i) => ({
+                      name: i.ingredient.name,
+                      price: i.ingredient.price,
+                      status: true,
+                      include: true,
+                      quantity: i.addedQuantity,
+                    })),
+                  };
+                } else {
+                  orderItem.orderToppings = { create: [] };
+                  orderItem.orderIngredients = { create: [] };
+                }
+
+                return orderItem;
+              }),
+            },
+          },
+          include: {
+            orderItems: {
+              include: {
+                pizza: true,
+                combo: true,
+                otherItem: true,
+                orderToppings: true,
+                orderIngredients: true,
+              },
+            },
+          },
+        });
+
+        // Clear cart
+        await tx.cart.update({
+          where: { id: cartId },
+          data: {
+            cartItems: { deleteMany: {} },
+            totalAmount: 0,
+          },
+        });
+
+        return order;
       });
 
-      // Add debug log
-      console.log(
-        "Cart Items:",
-        cart.cartItems.map((item) => ({
+      console.log("✅ Order created successfully:", {
+        id: result.id,
+        items: result.orderItems.map((item) => ({
           id: item.id,
           isOtherItem: item.isOtherItem,
           otherItemId: item.otherItemId,
           size: item.size,
-          price: item.finalPrice,
+          price: item.price,
+        })),
+      });
+
+      // After order creation, add this verification log
+      console.log(
+        "Order items created:",
+        result.orderItems.map((item) => ({
+          id: item.id,
+          isOtherItem: item.isOtherItem,
+          otherItemId: item.otherItemId,
+          size: item.size,
+          price: item.price,
+          cartItemId: item.cartItemId,
+          originalCartItem: cart.cartItems.find(
+            (ci) =>
+              ci.otherItemId === item.otherItemId ||
+              ci.comboId === item.comboId ||
+              ci.pizzaId === item.pizzaId
+          ),
         }))
       );
 
-      if (!cart) {
-        throw new Error("Cart not found");
-      }
+      // Add after order creation
+      console.log(
+        "Verifying created order items:",
+        result.orderItems.map((item) => ({
+          id: item.id,
+          isOtherItem: item.isOtherItem,
+          otherItemId: item.otherItemId,
+          type: item.isOtherItem ? "OTHER" : item.isCombo ? "COMBO" : "PIZZA",
+          size: item.size,
+          price: item.price,
+        }))
+      );
 
-      // Create order
-      const order = await prisma.order.create({
-        data: {
-          userId: userId,
-          status: "PENDING",
-          totalAmount: new Decimal(totalAmount),
-          deliveryMethod: deliveryMethod,
-          deliveryAddress: address || null,
-          pickupTime: pickupTime || null,
-          customerName: name,
-          paymentStatus: "PAID",
-          paymentId: session.payment_intent,
-          orderItems: {
-            create: cart.cartItems.map((item) => ({
-              pizzaId: item.isOtherItem ? null : item.pizzaId,
-              comboId: item.isCombo ? item.comboId : null,
-              otherItemId: item.otherItemId || null,
-              quantity: item.quantity,
-              size: item.size,
-              price: item.finalPrice,
-              isCombo: Boolean(item.isCombo),
-              isOtherItem: Boolean(item.isOtherItem),
-              orderToppings: {
-                create: item.cartToppings.map((t) => ({
-                  name: t.topping.name,
-                  price: t.topping.price,
-                  status: true,
-                  include: true,
-                  quantity: t.addedQuantity,
-                })),
-              },
-              orderIngredients: {
-                create: item.cartIngredients.map((i) => ({
-                  name: i.ingredient.name,
-                  price: i.ingredient.price,
-                  status: true,
-                  include: true,
-                  quantity: i.addedQuantity,
-                })),
-              },
-            })),
+      // After order creation
+      console.log("Final order items verification:", {
+        orderItems: result.orderItems.map((item) => ({
+          id: item.id,
+          isOtherItem: item.isOtherItem,
+          otherItemId: item.otherItemId,
+          originalCartItem: cart.cartItems.find(
+            (ci) =>
+              ci.id === item.cartItemId || ci.otherItemId === item.otherItemId
+          ),
+          types: {
+            isOtherItemType: typeof item.isOtherItem,
+            otherItemIdType: typeof item.otherItemId,
           },
-        },
-        include: {
-          orderItems: {
-            include: {
-              pizza: true,
-              combo: true,
-              otherItem: true,
-              orderToppings: true,
-              orderIngredients: true,
-            },
-          },
-        },
+        })),
       });
 
-      // Clear the cart
-      await prisma.cart.update({
-        where: { id: cartId },
-        data: {
-          cartItems: { deleteMany: {} },
-          totalAmount: 0,
-        },
-      });
-
-      console.log("✅ Order created and cart cleared:", order.id);
-
-      // Send response immediately after order creation
-      return res.json({
-        received: true,
-        orderId: order.id,
-      });
+      return res.json({ received: true, orderId: result.id });
     }
+
+    return res.json({ received: true });
   } catch (err) {
     console.error("Webhook Error:", err);
     return res.status(500).json({ error: err.message });

@@ -223,21 +223,25 @@ export default async function syncCart(req, res) {
     // Add these debug logs after processing items
     console.log(
       "Cart Items after processing:",
-      await prisma.cartItem.findMany({
-        where: { cartId: cart.id },
-        select: { finalPrice: true, quantity: true },
-      })
+      updatedItems.map((item) => ({
+        finalPrice: item.finalPrice,
+        quantity: item.quantity,
+      }))
     );
 
+    // Replace existing console logs with this simpler version
     const totalPrice = await prisma.cartItem.aggregate({
       where: { cartId: cart.id },
       _sum: { finalPrice: true },
     });
-    console.log("Aggregated Total:", totalPrice._sum.finalPrice);
 
-    console.log("Total Price from DB:", totalPrice);
+    // Add this simple console log for final price
+    console.log(
+      "Cart Final Total: $",
+      Number(totalPrice._sum.finalPrice).toFixed(2)
+    );
 
-    // Update the cart's totalAmount with null check
+    // Update cart total - do this only once
     const updatedCart = await prisma.cart.update({
       where: { id: cart.id },
       data: {
@@ -246,15 +250,10 @@ export default async function syncCart(req, res) {
       },
     });
 
-    console.log("Updated Cart Total:", updatedCart.totalAmount);
-
     const totalQuantity = await prisma.cartItem.aggregate({
       where: { cartId: cart.id },
       _sum: { quantity: true },
     });
-
-    // Remove this line since we already updated the cart total above
-    await updateCartTotal(cart.id);
 
     res.json({
       items: updatedItems,

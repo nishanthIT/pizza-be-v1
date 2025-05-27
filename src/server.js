@@ -110,6 +110,7 @@ app.post(
             include: {
               pizza: true,
               combo: true,
+              otherItem: true, // Add this
               cartToppings: {
                 include: { topping: true },
               },
@@ -125,6 +126,7 @@ app.post(
       if (!cart) {
         throw new Error("Cart not found");
       }
+      // Update the order creation query to include orderItems
       const order = await prisma.order.create({
         data: {
           userId: userId,
@@ -137,32 +139,60 @@ app.post(
           paymentStatus: "PAID",
           paymentId: session.payment_intent,
           orderItems: {
-            create: cart.cartItems.map((item) => ({
-              pizzaId: item.pizzaId,
-              comboId: item.comboId,
-              quantity: item.quantity,
-              size: item.size,
-              price: item.finalPrice,
-              isCombo: item.isCombo,
-              orderToppings: {
-                create: item.cartToppings.map((t) => ({
-                  name: t.topping.name,
-                  price: t.topping.price,
-                  status: true,
-                  include: true,
-                  quantity: t.addedQuantity,
-                })),
-              },
-              orderIngredients: {
-                create: item.cartIngredients.map((i) => ({
-                  name: i.ingredient.name,
-                  price: i.ingredient.price,
-                  status: true,
-                  include: true,
-                  quantity: i.addedQuantity,
-                })),
-              },
-            })),
+            create: cart.cartItems.map((item) => {
+              console.log("Creating order item:", {
+                id: item.id,
+                isOtherItem: item.isOtherItem,
+                otherItemId: item.otherItemId,
+              });
+
+              return {
+                pizzaId: item.isOtherItem ? null : item.pizzaId,
+                comboId: item.isCombo ? item.comboId : null,
+                otherItemId: item.otherItemId,
+                quantity: item.quantity,
+                size: item.size,
+                price: item.finalPrice,
+                isCombo: Boolean(item.isCombo),
+                isOtherItem: Boolean(item.isOtherItem),
+                orderToppings: {
+                  create:
+                    !item.isOtherItem && !item.isCombo
+                      ? item.cartToppings.map((t) => ({
+                          name: t.topping.name,
+                          price: t.topping.price,
+                          status: true,
+                          include: true,
+                          quantity: t.addedQuantity,
+                        }))
+                      : [],
+                },
+                orderIngredients: {
+                  create:
+                    !item.isOtherItem && !item.isCombo
+                      ? item.cartIngredients.map((i) => ({
+                          name: i.ingredient.name,
+                          price: i.ingredient.price,
+                          status: true,
+                          include: true,
+                          quantity: i.addedQuantity,
+                        }))
+                      : [],
+                },
+              };
+            }),
+          },
+        },
+        // Add this include block
+        include: {
+          orderItems: {
+            include: {
+              pizza: true,
+              combo: true,
+              otherItem: true,
+              orderToppings: true,
+              orderIngredients: true,
+            },
           },
         },
       });
@@ -178,6 +208,19 @@ app.post(
 
       // Save order to DB
       console.log("✅ New order:", order);
+
+      // After order creation
+      // Add null check before mapping
+      console.log(
+        "Order created with items:",
+        order.orderItems?.map((item) => ({
+          id: item.id,
+          isOtherItem: item.isOtherItem,
+          otherItemId: item.otherItemId,
+          size: item.size,
+          price: item.price,
+        })) || []
+      );
     }
 
     //res.send();
