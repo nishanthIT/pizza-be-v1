@@ -36,6 +36,8 @@ const addOtherItem = async (req, res) => {
           imageUrl: tempImageUrl,
         },
       });
+      
+      console.log("New other item created:", newItem);
 
       // Rename uploaded file if not using dummy image
       if (tempImageUrl !== "dummy.png") {
