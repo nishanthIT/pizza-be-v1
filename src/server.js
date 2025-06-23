@@ -1,37 +1,4 @@
-// import express from "express";
-// import cors from "cors";
-// import adminRoutes from "./routes/adminRoutes.js";
-// import path from "path";
-// import { fileURLToPath } from "url";
-// import getPizzaRoutes from "./routes/getPizzaRoutes.js";
-// import cartRoutes from "./routes/cartRoutes.js";
 
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-
-// const app = express();
-// const PORT = process.env.PORT || 3000;
-
-// app.use(express.json());
-
-// app.use(cookieParser());
-
-// //app.use(cors());
-// app.use(cors({
-//   origin: 'http://localhost:3000', // Your frontend URL
-//   credentials: true
-// }));
-
-// // Serve static files from the uploads directory
-// app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
-
-// app.use("/api", adminRoutes);
-// app.use("/api", getPizzaRoutes);
-// app.use("/api", cartRoutes);
-
-// app.listen(PORT, () => {
-//   console.log(`Server is running on port ${PORT}`);
-// });
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -57,7 +24,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3003;
+
+console.log("hited the server")
 
 app.post(
   "/webhook",
@@ -159,24 +128,24 @@ app.post(
                   create:
                     !item.isOtherItem && !item.isCombo
                       ? item.cartToppings.map((t) => ({
-                          name: t.topping.name,
-                          price: t.topping.price,
-                          status: true,
-                          include: true,
-                          quantity: t.addedQuantity,
-                        }))
+                        name: t.topping.name,
+                        price: t.topping.price,
+                        status: true,
+                        include: true,
+                        quantity: t.addedQuantity,
+                      }))
                       : [],
                 },
                 orderIngredients: {
                   create:
                     !item.isOtherItem && !item.isCombo
                       ? item.cartIngredients.map((i) => ({
-                          name: i.ingredient.name,
-                          price: i.ingredient.price,
-                          status: true,
-                          include: true,
-                          quantity: i.addedQuantity,
-                        }))
+                        name: i.ingredient.name,
+                        price: i.ingredient.price,
+                        status: true,
+                        include: true,
+                        quantity: i.addedQuantity,
+                      }))
                       : [],
                 },
               };
@@ -228,24 +197,41 @@ app.post(
   }
 );
 
-app.use(express.json());
-app.use(cookieParser());
+
+
+// const corsOptions = {
+//   origin: ["https://circlepizzapizza.co.uk/", "https://vino.circlepizzapizza.co.uk/"],
+//   credentials: true,
+//   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+//   allowedHeaders: ["Content-Type", "Authorization"],
+// };
+
+// app.use(cors(corsOptions));
 
 const corsOptions = {
-  origin: ["http://localhost:3001", "http://localhost:8080"],
+  origin: ["https://vino.circlepizzapizza.co.uk", "https://circlepizzapizza.co.uk"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
-
-// Add headers middleware
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  console.log("🔥 Incoming request:", req.method, req.originalUrl, "Origin:", req.headers.origin);
   next();
 });
+app.options("*", cors(corsOptions));
+
+app.use(cookieParser());
+app.use(express.urlencoded({ extended: true })); // For form POSTs
+app.use(express.json());
+
+// Add headers middleware
+// app.use((req, res, next) => {
+//   res.header("Access-Control-Allow-Credentials", "true");
+//   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+//   next();
+// });
 
 // Serve static files
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
