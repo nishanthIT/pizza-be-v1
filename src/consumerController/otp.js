@@ -270,13 +270,16 @@ const verifyOtp = async (req, res) => {
     const token = generateToken(user.id, user.phone);
     console.log('Generated token:', token);
 
+    const domain = process.env.NODE_ENV === 'production' 
+    ? '.circlepizzapizza.co.uk' // Leading dot for subdomains
+    : 'localhost';
     // Set cookie with token
     res.cookie('authToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000,
-      domain: 'localhost'
+      domain: domain // Use environment variable for domain
     });
     
     // Clean up OTP storage
