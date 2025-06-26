@@ -209,7 +209,7 @@ app.post(
 // app.use(cors(corsOptions));
 
 const corsOptions = {
-  origin: ["https://vino.circlepizzapizza.co.uk", "https://circlepizzapizza.co.uk"],
+  origin: ["https://vino.circlepizzapizza.co.uk", "https://circlepizzapizza.co.uk","http://localhost:8080","http://localhost:3001"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
